@@ -67,7 +67,7 @@ def migration():
     r = requests.get(url=SOURCE_URL+"/user", headers={"X-Api-Key":SOURCE_APIKEY},params={"take":500})
     source_data = r.json()
     for user in source_data["results"]:
-        if user["email"] == "temptest@email.com":
+        if user["email"] == "test@email.com":
             migrateUser(user)
 
 def testConnections():
@@ -138,8 +138,8 @@ def migrateRequests(userOldID,userNewID):
 
     for oldRequest in SOURCE_REQUESTS:
         if oldRequest["requestedBy"]["id"] == userOldID:
-            request_found=False
-            if oldRequest["is4k"] == False:
+            request_found = False
+            if oldRequest["is4k"] == True:
                 request4K = True
             else:
                 request4K = False
@@ -148,7 +148,7 @@ def migrateRequests(userOldID,userNewID):
                 for season in oldRequest["seasons"]:
                     seasonRequested.append(season["seasonNumber"])
                 for newRequest in TARGET_REQUESTS:
-                    if oldRequest["media"]["tmdbId"] == newRequest["media"]["tmdbId"]:
+                    if oldRequest["media"]["tmdbId"] == newRequest["media"]["tmdbId"] and oldRequest["is4k"] == newRequest["is4k"]:
                         for season in newRequest["seasons"]:
                             if season["seasonNumber"] in seasonRequested:
                                 request_found=True
@@ -162,7 +162,7 @@ def migrateRequests(userOldID,userNewID):
                 }           
             elif oldRequest["media"]["mediaType"] == "movie" :
                 for newRequest in TARGET_REQUESTS:
-                    if oldRequest["media"]["tmdbId"] == newRequest["media"]["tmdbId"]:
+                    if oldRequest["media"]["tmdbId"] == newRequest["media"]["tmdbId"] and oldRequest["is4k"] == newRequest["is4k"]:
                         request_found = True
                 PAYLOAD = {
                     "mediaType": oldRequest["media"]["mediaType"],

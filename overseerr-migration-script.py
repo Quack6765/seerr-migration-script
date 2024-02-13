@@ -38,6 +38,7 @@ def main():
     TARGET_APIKEY=args.target_api_key
     
     migration()
+    print("All done !")
 
 def migration():
     testConnections()
@@ -66,7 +67,7 @@ def migration():
     r = requests.get(url=SOURCE_URL+"/user", headers={"X-Api-Key":SOURCE_APIKEY},params={"take":500})
     source_data = r.json()
     for user in source_data["results"]:
-        if user["email"] == "plex2@po-mail.com":
+        if user["email"] == "temptest@email.com":
             migrateUser(user)
 
 def testConnections():
@@ -74,8 +75,8 @@ def testConnections():
     status = "Testing Jellyseerr connection ... "
     print(status, end="", flush=True)
     r = requests.get(url=SOURCE_URL+"/settings/main", headers={"X-Api-Key":SOURCE_APIKEY})
-    if r.status_code != 200:
-        print("ERROR: Couldn't connect to Overseerr ! HTTP error code: "+str(r.status_code))
+    if not r.ok:
+        print("ERROR: Couldn't connect to Overseerr ! HTTP error: "+str(r.status_code)+" - "+str(r.text))
         sys.exit(1)
     else:
         status = "OK"
@@ -84,8 +85,8 @@ def testConnections():
     status = "Testing Overseerr connection ... "
     print(status, end="", flush=True)
     r = requests.get(url=TARGET_URL+"/settings/main", headers={"X-Api-Key":TARGET_APIKEY})
-    if r.status_code != 200:
-        print("ERROR: Couldn't connect to Jellyseerr ! HTTP error code: "+str(r.status_code))
+    if not r.ok:
+        print("ERROR: Couldn't connect to Jellyseerr ! HTTP error: "+str(r.status_code)+" - "+str(r.text))
         sys.exit(1)
     else:
         status = "OK"
@@ -98,19 +99,30 @@ def migrateUser(user):
     for existingUser in TARGET_USERS:
         if existingUser["email"] == user["email"]:
             user_found = True
-            userNewID=existingUser["id"]
+            userNewID = existingUser["id"]
 
     if user_found == False:
+        if user["username"] == None:
+            newUsername = user["plexUsername"]
+        else:
+            newUsername = user["username"]
         PAYLOAD = {
             "email": user["email"],
-            "username": user["username"],
-            "permissions": 4194464
-        }
+            "username": newUsername,
+            "permissions": user["permissions"]
+        }       
         r = requests.post(url=TARGET_URL+"/user", headers={"X-Api-Key":TARGET_APIKEY}, json = PAYLOAD)
-        if r.status_code != 201:
-            print("ERROR: Trouble migrating user 'bgendron' ! HTTP error code: "+str(r.status_code))
+        if not r.ok:
+            print("ERROR: Trouble migrating user '"+user["email"]+"' ! HTTP error: "+str(r.status_code)+" - "+str(r.text))
             sys.exit(1)
-        userNewID=r.text["id"]
+        userNewID=r.json()["id"]
+
+        # Fix for permissions
+        r = requests.put(url=TARGET_URL+"/user/"+str(userNewID), headers={"X-Api-Key":TARGET_APIKEY}, json = {"permissions": user["permissions"]})
+        if not r.ok:
+            print("ERROR: Trouble changing permissions for user '"+user["email"]+"' ! HTTP error: "+str(r.status_code)+" - "+str(r.text))
+            sys.exit(1)
+
         print("User '"+user["email"]+"' created in Jellyseerr")
     else:
         print("User '"+user["email"]+"' already in Jellyseer. Skipping")
@@ -127,34 +139,42 @@ def migrateRequests(userOldID,userNewID):
     for oldRequest in SOURCE_REQUESTS:
         if oldRequest["requestedBy"]["id"] == userOldID:
             request_found=False
+            if oldRequest["is4k"] == False:
+                request4K = True
+            else:
+                request4K = False
             if oldRequest["media"]["mediaType"] == "tv" :
-                for newRequest in TARGET_REQUESTS:
-                    if oldRequest["media"]["tmdbId"] == newRequest["media"]["tmdbId"]:
-                        request_found=True
                 seasonRequested=[]
                 for season in oldRequest["seasons"]:
                     seasonRequested.append(season["seasonNumber"])
+                for newRequest in TARGET_REQUESTS:
+                    if oldRequest["media"]["tmdbId"] == newRequest["media"]["tmdbId"]:
+                        for season in newRequest["seasons"]:
+                            if season["seasonNumber"] in seasonRequested:
+                                request_found=True
                 PAYLOAD = {
                     "mediaType": oldRequest["media"]["mediaType"],
                     "mediaId": oldRequest["media"]["tmdbId"],
                     "tmdbId": oldRequest["media"]["tmdbId"],
+                    "is4k": request4K,
                     "seasons": seasonRequested,
                     "userId": userNewID
                 }           
             elif oldRequest["media"]["mediaType"] == "movie" :
                 for newRequest in TARGET_REQUESTS:
                     if oldRequest["media"]["tmdbId"] == newRequest["media"]["tmdbId"]:
-                        request_found=True
+                        request_found = True
                 PAYLOAD = {
                     "mediaType": oldRequest["media"]["mediaType"],
                     "mediaId": oldRequest["media"]["tmdbId"],
                     "tmdbId": oldRequest["media"]["tmdbId"],
+                    "is4k": request4K,
                     "userId": userNewID
                 }
             if request_found == False:
                 r = requests.post(url=TARGET_URL+"/request", headers={"X-Api-Key":TARGET_APIKEY}, json = PAYLOAD)
-                if r.status_code != 201:
-                    print("ERROR: Trouble adding request with ID 'tmdbId:"+str(PAYLOAD["mediaId"])+"' ! HTTP error code: "+str(r.status_code))
+                if not r.ok:
+                    print("ERROR: Trouble adding request with ID 'tmdbId:"+str(PAYLOAD["mediaId"])+"' ! HTTP error: "+str(r.status_code)+" - "+str(r.text))
                     sys.exit(1)
                 print("Added request for 'tmdbId:"+str(PAYLOAD["mediaId"])+"' to Jellyseer")
             else:

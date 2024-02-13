@@ -129,36 +129,36 @@ def migrateRequests(userOldID,userNewID):
             request_found=False
             if oldRequest["media"]["mediaType"] == "tv" :
                 for newRequest in TARGET_REQUESTS:
-                    if oldRequest["media"]["tvdbId"] == newRequest["media"]["tvdbId"]:
+                    if oldRequest["media"]["tmdbId"] == newRequest["media"]["tmdbId"]:
                         request_found=True
-                PAYLOAD_TYPE="tvdbId"
+                seasonRequested=[]
+                for season in oldRequest["seasons"]:
+                    seasonRequested.append(season["seasonNumber"])
                 PAYLOAD = {
                     "mediaType": oldRequest["media"]["mediaType"],
-                    "mediaId": oldRequest["media"][PAYLOAD_TYPE],
-                    PAYLOAD_TYPE: oldRequest["media"][PAYLOAD_TYPE],
-                    "seasons": oldRequest["seasons"],
+                    "mediaId": oldRequest["media"]["tmdbId"],
+                    "tmdbId": oldRequest["media"]["tmdbId"],
+                    "seasons": seasonRequested,
                     "userId": userNewID
                 }           
             elif oldRequest["media"]["mediaType"] == "movie" :
                 for newRequest in TARGET_REQUESTS:
                     if oldRequest["media"]["tmdbId"] == newRequest["media"]["tmdbId"]:
                         request_found=True
-                PAYLOAD_TYPE="tmdbId"
                 PAYLOAD = {
                     "mediaType": oldRequest["media"]["mediaType"],
-                    "mediaId": oldRequest["media"][PAYLOAD_TYPE],
-                    PAYLOAD_TYPE: oldRequest["media"][PAYLOAD_TYPE],
+                    "mediaId": oldRequest["media"]["tmdbId"],
+                    "tmdbId": oldRequest["media"]["tmdbId"],
                     "userId": userNewID
                 }
             if request_found == False:
                 r = requests.post(url=TARGET_URL+"/request", headers={"X-Api-Key":TARGET_APIKEY}, json = PAYLOAD)
                 if r.status_code != 201:
-                    print("ERROR: Trouble adding request with ID '"++"' ! HTTP error code: "+str(r.status_code))
+                    print("ERROR: Trouble adding request with ID 'tmdbId:"+str(PAYLOAD["mediaId"])+"' ! HTTP error code: "+str(r.status_code))
                     sys.exit(1)
-                print("Added request for '"+PAYLOAD_TYPE+":"+str(PAYLOAD["mediaId"])+"' to Jellyseer")
+                print("Added request for 'tmdbId:"+str(PAYLOAD["mediaId"])+"' to Jellyseer")
             else:
-                print("Request '"+PAYLOAD_TYPE+":"+str(PAYLOAD["mediaId"])+"' already in Jellyseer. Skipping")
-            
+                print("Request 'tmdbId:"+str(PAYLOAD["mediaId"])+"' already in Jellyseer. Skipping")    
 
 if __name__ == '__main__':
     main()

@@ -1,22 +1,23 @@
+#!/usr/bin/env python3
 # Python script to migrate Overseerr to Jellyseerr
 # https://github.com/Quack6765/seerr-migration-script
 
-import sys, time, argparse, requests
+import sys, time, argparse, requests, json
 
 def parse_args():
     parser = argparse.ArgumentParser()
     
     # Add source argument
-    parser.add_argument('-s', '--source', help='The source from which to retrieve data')
+    parser.add_argument('-s', '--source', help='The URL source from which to retrieve data (Overseerr)')
 
     # Add source API key argument
-    parser.add_argument('-k', '--source_api_key', help='The API Key for the source')
+    parser.add_argument('-k', '--source_api_key', help='The API Key for the source (Overseerr)')
 
     # Add target argument
-    parser.add_argument('-t', '--target', help='The target where to send data')
+    parser.add_argument('-t', '--target', help='The URL target where to send data (Jellyseerr)')
     
     # Add target API key argument
-    parser.add_argument('-a', '--target_api_key', help='The API Key for the target')
+    parser.add_argument('-a', '--target_api_key', help='The API Key for the target (Jellyseerr)')
 
     return parser.parse_args()
 
@@ -67,7 +68,8 @@ def migration():
     r = requests.get(url=SOURCE_URL+"/user", headers={"X-Api-Key":SOURCE_APIKEY},params={"take":500})
     source_data = r.json()
     for user in source_data["results"]:
-        if user["email"] == "test@email.com":
+        # Single user for debugging
+        if user["email"] == "test@example.com":
             migrateUser(user)
 
 def testConnections():
@@ -110,7 +112,7 @@ def migrateUser(user):
             "email": user["email"],
             "username": newUsername,
             "permissions": user["permissions"]
-        }       
+        }
         r = requests.post(url=TARGET_URL+"/user", headers={"X-Api-Key":TARGET_APIKEY}, json = PAYLOAD)
         if not r.ok:
             print("ERROR: Trouble migrating user '"+user["email"]+"' ! HTTP error: "+str(r.status_code)+" - "+str(r.text))
@@ -124,6 +126,7 @@ def migrateUser(user):
             sys.exit(1)
 
         print("User '"+user["email"]+"' created in Jellyseerr")
+
     else:
         print("User '"+user["email"]+"' already in Jellyseer. Skipping")
 
@@ -131,8 +134,49 @@ def migrateUser(user):
     for oldUser in SOURCE_USERS:
         if oldUser["email"] == user["email"]:
             userOldID=oldUser["id"]
-    
+
+    # Disable notifications for the user
+    change_jellyseerr_user_notifications(TARGET_URL, TARGET_APIKEY, userNewID, "disable")
+    print(f"Disabled notifications for user '{user['email']}' in Jellyseerr")
+
     migrateRequests(userOldID,userNewID)
+
+    # Enable notifications for the user
+    change_jellyseerr_user_notifications(TARGET_URL, TARGET_APIKEY, userNewID, "enable")
+    print(f"Enabled notifications for user '{user['email']}' in Jellyseerr")
+
+def change_jellyseerr_user_notifications(jellyseerr_url, jellyseerr_api_key, user_id, change_type):
+
+    headers = {
+        "X-Api-Key": jellyseerr_api_key,
+        "Content-Type": "application/json"
+    }
+    url = f"{jellyseerr_url}/user/{user_id}/settings/notifications"
+
+    if change_type == "disable":
+        notification_payload_value = 0
+    elif change_type == "enable":
+        notification_payload_value = 3661
+
+    jellyseerr_notification_payload = {
+        "notificationTypes": {
+            "discord": notification_payload_value,
+            "email": notification_payload_value,
+            "pushbullet": notification_payload_value,
+            "pushover": notification_payload_value,
+            "slack": notification_payload_value,
+            "telegram": notification_payload_value,
+            "webhook": notification_payload_value,
+            "webpush": notification_payload_value
+        }
+    }
+    try:
+        response = requests.post(url, headers=headers, data=json.dumps(jellyseerr_notification_payload))
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error disabling Jellyseerr user notifications for user ID {user_id}: {e}")
+        return None
 
 def migrateRequests(userOldID,userNewID):
 
@@ -158,8 +202,10 @@ def migrateRequests(userOldID,userNewID):
                     "tmdbId": oldRequest["media"]["tmdbId"],
                     "is4k": request4K,
                     "seasons": seasonRequested,
-                    "userId": userNewID
-                }           
+                    "userId": userNewID,
+                    "sendNotification": False
+                }
+
             elif oldRequest["media"]["mediaType"] == "movie" :
                 for newRequest in TARGET_REQUESTS:
                     if oldRequest["media"]["tmdbId"] == newRequest["media"]["tmdbId"] and oldRequest["is4k"] == newRequest["is4k"]:
@@ -169,16 +215,17 @@ def migrateRequests(userOldID,userNewID):
                     "mediaId": oldRequest["media"]["tmdbId"],
                     "tmdbId": oldRequest["media"]["tmdbId"],
                     "is4k": request4K,
-                    "userId": userNewID
+                    "userId": userNewID,
+                    "sendNotification": False
                 }
             if request_found == False:
                 r = requests.post(url=TARGET_URL+"/request", headers={"X-Api-Key":TARGET_APIKEY}, json = PAYLOAD)
                 if not r.ok:
                     print("ERROR: Trouble adding request with ID 'tmdbId:"+str(PAYLOAD["mediaId"])+"' ! HTTP error: "+str(r.status_code)+" - "+str(r.text))
-                    sys.exit(1)
+                    continue
                 print("Added request for 'tmdbId:"+str(PAYLOAD["mediaId"])+"' to Jellyseer")
             else:
-                print("Request 'tmdbId:"+str(PAYLOAD["mediaId"])+"' already in Jellyseer. Skipping")    
+                print("Request 'tmdbId:"+str(PAYLOAD["mediaId"])+"' already in Jellyseer. Skipping")
 
 if __name__ == '__main__':
     main()

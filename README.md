@@ -73,3 +73,4 @@ python3 overseerr-migration-script.py \
 - The TMDB API key is optional but recommended for retrieving media names
 - Existing users and requests will be skipped to prevent duplicates
 - Notifications are temporarily disabled during migration to prevent mass send of emails.
+- Users in Jellyseerr will be created as local users by default. If you want to use the 'Emby Login' feature for your new users, make sure to import the Emby users manually in Jellyseer using the 'Import Emby Users' button beforehand. A match on the email will then be used to import their requests.

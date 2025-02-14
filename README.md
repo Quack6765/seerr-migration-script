@@ -33,9 +33,12 @@ The script generates a `migration.log` file with detailed information about the 
 
 #### Successful Migration
 ```
-2025-02-14 14:53:45,123 - INFO - Starting migration process...
-2025-02-14 14:53:45,456 - INFO - Found 10 requests for user ID 123
-2025-02-14 14:53:46,789 - INFO - Added request for tv 'The Mandalorian' (tmdbId:66732) to Jellyseerr
+2025-02-14 15:39:19,862 - INFO - User 'user@example.com' already exists in Jellyseerr, skipping creation
+2025-02-14 15:39:19,882 - INFO - Found 2 requests for user ID 539
+2025-02-14 15:39:19,882 - INFO - Request for movie (tmdbId:1043499) already exists in Jellyseerr, skipping
+2025-02-14 15:39:19,882 - INFO - Found 1 existing requests, 1 new requests to migrate
+2025-02-14 15:39:19,992 - INFO - Added request for tv 'Alice in Borderland' (tmdbId:110316) to Jellyseerr
+2025-02-14 15:39:19,992 - INFO - Request migration completed. Success: 2/2 (100.0%), Failures: 0/2 (0.0%)
 ```
 
 #### Partial Migration with Errors

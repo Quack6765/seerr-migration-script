@@ -21,10 +21,10 @@ python3 overseerr-migration-script.py -s SOURCE_URL -k SOURCE_API_KEY -t TARGET_
 - `-m` or `--tmdb_api_key`: (Optional) TMDB API key for fetching media details
 
 ## Features
-- Migrate user accounts
-- Transfer media requests
-- Optional media name retrieval using TMDB API
-- Detailed logging of migration process
+- 👥 Migrate user accounts
+- 🎬 Transfer media requests
+- 🌐 Optional media name retrieval using TMDB API
+- 📝 Detailed logging of migration process
 
 ## Logging
 The script generates a `migration.log` file with detailed information about the migration process.
@@ -66,10 +66,10 @@ python3 overseerr-migration-script.py \
   -k YOUR_OVERSEERR_API_KEY \
   -t https://your-jellyseerr.example.com \
   -a YOUR_JELLYSEERR_API_KEY \
-  -m YOUR_TMDB_API_KEY
+  -m YOUR_TMDB_API_KEY (Optional)
 ```
 
 ## Notes
 - The TMDB API key is optional but recommended for retrieving media names
 - Existing users and requests will be skipped to prevent duplicates
-- Notifications are temporarily disabled during migration
+- Notifications are temporarily disabled during migration to prevent mass send of emails.

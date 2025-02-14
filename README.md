@@ -22,7 +22,7 @@ python3 overseerr-migration-script.py -s SOURCE_URL -k SOURCE_API_KEY -t TARGET_
 
 ## Features
 - 👥 Migrate user accounts
-- 🎬 Transfer media requests
+- 🎬 Transfer unfulfilled media requests
 - 🌐 Optional media name retrieval using TMDB API
 - 📝 Detailed logging of migration process
 

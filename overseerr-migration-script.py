@@ -475,8 +475,8 @@ def create_request_payload(request: Dict[str, Any], user_id: int) -> Dict[str, A
             user_id = int(user_id)
         except (ValueError, TypeError):
             logger.error(f"Failed to convert user ID {user_id} to integer")
-            # Default to 1 (admin) if conversion fails
-            user_id = 1
+            # Raise an exception instead of defaulting to admin user
+            raise ValueError(f"Invalid user ID: {user_id}")
     
     logger.debug(f"Using user ID {user_id} for request")
     
@@ -583,7 +583,18 @@ def verify_user_exists(user_id: int) -> bool:
         bool: True if the user exists, False otherwise
     """
     try:
-        logger.debug(f"Verifying user ID {user_id} exists in Jellyseerr")
+        logger.info(f"Verifying user ID {user_id} (type: {type(user_id).__name__}) exists in Jellyseerr")
+        
+        # Ensure user_id is an integer
+        if not isinstance(user_id, int):
+            logger.warning(f"User ID {user_id} is not an integer, attempting to convert")
+            try:
+                user_id = int(user_id)
+                logger.info(f"Successfully converted user ID to integer: {user_id}")
+            except (ValueError, TypeError) as e:
+                logger.error(f"Failed to convert user ID {user_id} to integer: {str(e)}")
+                return False
+        
         r = requests.get(
             url=f"{TARGET_URL}/user/{user_id}",
             headers={"X-Api-Key": TARGET_APIKEY},
@@ -599,7 +610,7 @@ def verify_user_exists(user_id: int) -> bool:
         user_type = user_data.get('userType', 'unknown')
         created_at = user_data.get('createdAt', 'unknown')
         
-        logger.debug(f"User details - ID: {user_id}, Email: {email}, Username: {username}, Display Name: {display_name}, Type: {user_type}, Created: {created_at}")
+        logger.info(f"User verified - ID: {user_id}, Email: {email}, Username: {username}, Display Name: {display_name}, Type: {user_type}")
         logger.debug(f"Full user data: {json.dumps(user_data)}")
         
         # Check if the user has the necessary permissions to make requests
@@ -748,6 +759,9 @@ def migrateRequests(userOldID: int, userNewID: int) -> bool:
                 # Fetch media details from TMDB
                 tmdb_details = fetch_tmdb_media_details(tmdb_id, media_type)
                 media_name = tmdb_details.get('title', tmdb_details.get('name', 'Unknown'))
+                
+                # Log user ID information before creating payload
+                logger.info(f"Creating request for {media_type} '{media_name}' (tmdbId:{tmdb_id}) with user ID {userNewID} (type: {type(userNewID).__name__})")
                 
                 payload = create_request_payload(request, userNewID)
                 

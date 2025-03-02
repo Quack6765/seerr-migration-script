@@ -120,9 +120,24 @@ def fetch_data(url: str, api_key: str, endpoint: str, params: Dict[str, Any]) ->
             timeout=30
         )
         r.raise_for_status()
-        return r.json()["results"]
+        response_data = r.json()
+        
+        # Check if the response has a 'results' field
+        if 'results' not in response_data:
+            logger.error(f"Response from {endpoint} does not contain 'results' field. Response: {json.dumps(response_data)}")
+            return []
+            
+        return response_data["results"]
     except RequestException as e:
-        logger.error(f"Failed to fetch data from {endpoint}: {str(e)} - Response: {r.text if r and hasattr(r, 'text') else 'No response text'}")
+        # Get the response content if available
+        response_text = ""
+        if r and hasattr(r, 'text'):
+            try:
+                response_text = f" Response: {r.text}"
+            except:
+                pass
+                
+        logger.error(f"Failed to fetch data from {endpoint}: {str(e)}{response_text}")
         raise
 
 def migration() -> bool:
@@ -192,7 +207,15 @@ def testConnections() -> bool:
         r.raise_for_status()
         print("OK")
     except requests.exceptions.RequestException as e:
-        logger.error(f"Couldn't connect to Overseerr! {str(e)} - Response: {r.text if r and hasattr(r, 'text') else 'No response text'}")
+        # Get the response content if available
+        response_text = ""
+        if r and hasattr(r, 'text'):
+            try:
+                response_text = f" Response: {r.text}"
+            except:
+                pass
+                
+        logger.error(f"Couldn't connect to Overseerr! {str(e)}{response_text}")
         return False
 
     # Test Jellyseerr connection
@@ -208,7 +231,15 @@ def testConnections() -> bool:
         r.raise_for_status()
         print("OK")
     except requests.exceptions.RequestException as e:
-        logger.error(f"Couldn't connect to Jellyseerr! {str(e)} - Response: {r.text if r and hasattr(r, 'text') else 'No response text'}")
+        # Get the response content if available
+        response_text = ""
+        if r and hasattr(r, 'text'):
+            try:
+                response_text = f" Response: {r.text}"
+            except:
+                pass
+                
+        logger.error(f"Couldn't connect to Jellyseerr! {str(e)}{response_text}")
         return False
         
     return True
@@ -557,20 +588,40 @@ def verify_request_created(request_id: int) -> bool:
             headers={"X-Api-Key": TARGET_APIKEY},
             timeout=30
         )
-        r.raise_for_status()
         
-        # Log details about the request
-        request_data = r.json()
-        media_type = request_data.get("media", {}).get("mediaType", "unknown")
-        tmdb_id = request_data.get("media", {}).get("tmdbId", "unknown")
-        title = request_data.get("media", {}).get("title", request_data.get("media", {}).get("name", "Unknown"))
-        user_id = request_data.get("requestedBy", {}).get("id", "unknown")
-        status = request_data.get("status", "unknown")
-        
-        logger.debug(f"Request details - ID: {request_id}, Type: {media_type}, Title: '{title}', TMDB ID: {tmdb_id}, User ID: {user_id}, Status: {status}")
-        return True
+        try:
+            r.raise_for_status()
+            
+            # Log details about the request
+            request_data = r.json()
+            media_type = request_data.get("media", {}).get("mediaType", "unknown")
+            tmdb_id = request_data.get("media", {}).get("tmdbId", "unknown")
+            title = request_data.get("media", {}).get("title", request_data.get("media", {}).get("name", "Unknown"))
+            user_id = request_data.get("requestedBy", {}).get("id", "unknown")
+            status = request_data.get("status", "unknown")
+            
+            logger.debug(f"Request details - ID: {request_id}, Type: {media_type}, Title: '{title}', TMDB ID: {tmdb_id}, User ID: {user_id}, Status: {status}")
+            return True
+        except requests.exceptions.HTTPError as e:
+            # Get the response content if available
+            response_text = ""
+            try:
+                response_text = f" Response: {r.text}"
+            except:
+                pass
+            
+            logger.error(f"Failed to verify request ID {request_id}: {str(e)}{response_text}")
+            return False
     except Exception as e:
-        logger.error(f"Failed to verify request ID {request_id}: {str(e)}")
+        # Get the response content if available
+        response_text = ""
+        if hasattr(e, 'response') and e.response:
+            try:
+                response_text = f" Response: {e.response.text}"
+            except:
+                pass
+        
+        logger.error(f"Failed to verify request ID {request_id}: {str(e)}{response_text}")
         return False
 
 def verify_user_exists(user_id: int) -> bool:
@@ -774,41 +825,70 @@ def migrateRequests(userOldID: int, userNewID: int) -> bool:
                     json=payload,
                     timeout=30
                 )
-                r.raise_for_status()
                 
-                # Check the response content
-                response_data = r.json()
-                if 'id' in response_data:
-                    request_id = response_data['id']
-                    logger.info(f"Added request for {media_type} '{media_name}' (tmdbId:{tmdb_id}) to Jellyseerr - Request ID: {request_id}")
+                # Capture and log the full response, even if it's an error
+                try:
+                    r.raise_for_status()
                     
-                    # Verify the request was created by fetching it back
-                    if verify_request_created(request_id):
-                        logger.info(f"Verified request ID {request_id} exists in Jellyseerr")
-                        success_count += 1
+                    # Check the response content
+                    response_data = r.json()
+                    if 'id' in response_data:
+                        request_id = response_data['id']
+                        logger.info(f"Added request for {media_type} '{media_name}' (tmdbId:{tmdb_id}) to Jellyseerr - Request ID: {request_id}")
+                        
+                        # Verify the request was created by fetching it back
+                        if verify_request_created(request_id):
+                            logger.info(f"Verified request ID {request_id} exists in Jellyseerr")
+                            success_count += 1
+                        else:
+                            logger.warning(f"Could not verify request ID {request_id} exists in Jellyseerr")
+                            failure_count += 1
                     else:
-                        logger.warning(f"Could not verify request ID {request_id} exists in Jellyseerr")
+                        logger.warning(f"Request for {media_type} '{media_name}' (tmdbId:{tmdb_id}) may not have been created properly. Response: {json.dumps(response_data)}")
                         failure_count += 1
-                else:
-                    logger.warning(f"Request for {media_type} '{media_name}' (tmdbId:{tmdb_id}) may not have been created properly. Response: {json.dumps(response_data)}")
+                except requests.exceptions.HTTPError as e:
+                    # For TV shows, include specific seasons in the error log
+                    seasons_str = ""
+                    if media_type == 'tv':
+                        seasons = [season["seasonNumber"] for season in request.get("seasons", [])]
+                        seasons_str = f", seasons:{seasons}"
+                    
+                    # Get the response content if available
+                    response_text = ""
+                    try:
+                        response_text = f" Response: {r.text}"
+                    except:
+                        pass
+                    
+                    logger.error(f"Failed to migrate request for {media_type} '{media_name}' (tmdbId:{tmdb_id}{seasons_str}): {str(e)}{response_text}")
                     failure_count += 1
                 
             except RequestException as e:
                 # For TV shows, include specific seasons in the error log
+                seasons_str = ""
                 if media_type == 'tv':
                     seasons = [season["seasonNumber"] for season in request.get("seasons", [])]
-                    logger.error(f"Failed to migrate request for {media_type} '{media_name}' (tmdbId:{tmdb_id}, seasons:{seasons}): {str(e)}")
-                else:
-                    logger.error(f"Failed to migrate request for {media_type} '{media_name}' (tmdbId:{tmdb_id}): {str(e)}")
+                    seasons_str = f", seasons:{seasons}"
+                
+                # Get the response content if available
+                response_text = ""
+                if hasattr(e, 'response') and e.response:
+                    try:
+                        response_text = f" Response: {e.response.text}"
+                    except:
+                        pass
+                
+                logger.error(f"Failed to migrate request for {media_type} '{media_name}' (tmdbId:{tmdb_id}{seasons_str}): {str(e)}{response_text}")
                 failure_count += 1
                 continue
             except Exception as e:
                 # For TV shows, include specific seasons in the error log
+                seasons_str = ""
                 if media_type == 'tv':
                     seasons = [season["seasonNumber"] for season in request.get("seasons", [])]
-                    logger.error(f"Unexpected error processing request for {media_type} '{media_name}' (tmdbId:{tmdb_id}, seasons:{seasons}): {str(e)}")
-                else:
-                    logger.error(f"Unexpected error processing request for {media_type} '{media_name}' (tmdbId:{tmdb_id}): {str(e)}")
+                    seasons_str = f", seasons:{seasons}"
+                
+                logger.error(f"Unexpected error processing request for {media_type} '{media_name}' (tmdbId:{tmdb_id}{seasons_str}): {str(e)}")
                 failure_count += 1
                 continue
                 

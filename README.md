@@ -42,7 +42,3 @@ python3 overseerr-migration-script.py \
 ## Troubleshooting
 - Use the `-d` flag to enable detailed debug logging
 - Check the `migration.log` file for detailed information
-- Common issues:
-  - Missing email notification settings in Jellyseerr
-  - Users created as local accounts instead of Jellyfin/Emby accounts
-  - Requests not appearing for users
